@@ -18,9 +18,11 @@ int main(int argc, char *argv[])
     int option;
     string filename = "";
     int singlepoint = 0;
-    char* chararg[1] = {NULL};
+    char* chararg[] = {"", "-m", "", NULL};
     bool new_channel = false;
     datamsg d = datamsg(15, 0.008, 2);
+    int buffer_capacity=0;
+
     while((option = getopt(argc, argv, "p:t:e:f:m:c"))!=-1)
     {
         switch(option)
@@ -44,12 +46,16 @@ int main(int argc, char *argv[])
                     break;
             case 'f':
                     filename = optarg;
+                    cout << "the filename is:" << filename << endl;
                     break;
             case 'c':
                     new_channel = true;
                     break;
             case 'm':
-                    chararg[0] = optarg;
+                    //string val = "-m:" + *optarg;
+                     
+                    chararg[2] = optarg;
+                    break;
             default:
                     break;
 
@@ -61,23 +67,29 @@ int main(int argc, char *argv[])
     int identity = fork();
     if(identity==0)
     {
-        cout << "chararg is:" << chararg[0]<< endl;
+        //cout << chararg[1] <<endl;
+        //cout << "chararg is:" << *chararg<< endl;
         execvp("./server", chararg);
+        //sleep(2);
     }
     else
     {
         gettimeofday(&start, NULL);
         FIFORequestChannel chan ("control", FIFORequestChannel::CLIENT_SIDE);
-        //cout << "singlepoint is:"  << singlepoint<<endl;
-        if(singlepoint ==3)
+        cout << "singlepoint is:"  << singlepoint<<endl;
+
+        // if single data point is requested
+        if(singlepoint ==3 && !new_channel)
         {   
-              
+           
             chan.cwrite(&d, sizeof(datamsg));
             double result;
             chan.cread(&result, sizeof(double));
             cout << "The result is:" << result << endl;
 
         }
+
+        //if 1000 data points are requested
         if(singlepoint==2)
         {
             //cout << "I enter here" << endl;
@@ -105,10 +117,24 @@ int main(int argc, char *argv[])
             cout << "Time taken by program is : " << fixed << time_taken << setprecision(6); 
             cout << " sec" << endl; 
         }
+
+        //if buffer capacity is changed update it here
+        if(chararg[1]!=NULL)
+        {
+            buffer_capacity = stoi(chararg[2]);
+        }
+        else
+        {
+            buffer_capacity = 256;
+        }
+
         
-        //filename = "100.dat";
+        
+        // recieve file and copy it to received folder.
+
         if(filename.size()>1)
         {
+            
             ofstream file("received/" + filename);
             filemsg f(0,0);
             char buf[sizeof(filemsg) + filename.size()+1];
@@ -121,11 +147,11 @@ int main(int argc, char *argv[])
             chan.cread (&filelen, sizeof(__int64_t));
             
 
-            int count = ceil((double)filelen/256);
+            int count = ceil((double)filelen/buffer_capacity);
             cout << "The ceil value is: " << count  << endl;
             int offset_val = 0;
-            int length = 256;
-            char recvbuf[256];
+            int length = buffer_capacity;
+            char recvbuf[buffer_capacity];
             while(count>0)
             {
                 
@@ -144,7 +170,7 @@ int main(int argc, char *argv[])
                 strcpy(buf1 + sizeof(filemsg), filename.c_str());
                 chan.cwrite(buf1, sizeof(buf1));
                 chan.cread(recvbuf, sizeof(recvbuf));
-                offset_val = offset_val + 256;
+                offset_val = offset_val + buffer_capacity;
                 file.write(recvbuf, length);
                 count--;
 
@@ -160,6 +186,7 @@ int main(int argc, char *argv[])
 
         }
 
+        //perform operations with new channel
         if(new_channel)
         {
             
@@ -175,15 +202,16 @@ int main(int argc, char *argv[])
             cout << "The result is:" << result << endl;
             MESSAGE_TYPE quit = QUIT_MSG;
             chan1.cwrite(&quit, sizeof(MESSAGE_TYPE));
-            chan.cwrite(&quit, sizeof(MESSAGE_TYPE));
 
         }
 
 
 
-        // closing the channel    
-       
-        wait(&child_status);
+        // closing the channel
+        
+        MESSAGE_TYPE quit = QUIT_MSG; 
+        chan.cwrite(&quit, sizeof(MESSAGE_TYPE));
+        wait(&child_status);   
         
     }
 }

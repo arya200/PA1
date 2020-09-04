@@ -177,6 +177,7 @@ int main(int argc, char *argv[]){
 				break;
 		}
 	}
+	cout <<"buffercapacity is:" << buffercapacity <<endl;
 	srand(time_t(NULL));
 	for (int i=0; i<NUM_PERSONS; i++){
 		populate_file_data(i+1);
