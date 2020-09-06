@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
     int option;
     string filename = "";
     int singlepoint = 0;
-    char* chararg[] = {"", "-m", "", NULL};
+    char* chararg[]={"","-m","", NULL};
     bool new_channel = false;
     datamsg d = datamsg(15, 0.008, 2);
     int buffer_capacity=0;
@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
                     break;
             case 'f':
                     filename = optarg;
-                    cout << "the filename is:" << filename << endl;
+                    //cout << "the filename is:" << filename << endl;
                     break;
             case 'c':
                     new_channel = true;
@@ -69,14 +69,22 @@ int main(int argc, char *argv[])
     {
         //cout << chararg[1] <<endl;
         //cout << "chararg is:" << *chararg<< endl;
-        execvp("./server", chararg);
+        if(chararg[2]!="")
+        {
+            execvp("./server", chararg);
+        }
+        else
+        {
+            execvp("./server", NULL);
+        }
+        
         //sleep(2);
     }
     else
     {
         gettimeofday(&start, NULL);
         FIFORequestChannel chan ("control", FIFORequestChannel::CLIENT_SIDE);
-        cout << "singlepoint is:"  << singlepoint<<endl;
+        //cout << "singlepoint is:"  << singlepoint<<endl;
 
         // if single data point is requested
         if(singlepoint ==3 && !new_channel)
@@ -86,6 +94,13 @@ int main(int argc, char *argv[])
             double result;
             chan.cread(&result, sizeof(double));
             cout << "The result is:" << result << endl;
+            gettimeofday(&end, NULL);
+            double time_taken; 
+        
+            time_taken = (end.tv_sec - start.tv_sec) * 1e6; 
+            time_taken = (time_taken + (end.tv_usec - start.tv_usec)) * 1e-6;
+            cout << "Time taken by program is : " << fixed << time_taken << setprecision(6); 
+            cout << " sec" << endl; 
 
         }
 
@@ -119,7 +134,8 @@ int main(int argc, char *argv[])
         }
 
         //if buffer capacity is changed update it here
-        if(chararg[1]!=NULL)
+        
+        if(chararg[2]!="")
         {
             buffer_capacity = stoi(chararg[2]);
         }
@@ -147,11 +163,12 @@ int main(int argc, char *argv[])
             chan.cread (&filelen, sizeof(__int64_t));
             
 
-            int count = ceil((double)filelen/buffer_capacity);
-            cout << "The ceil value is: " << count  << endl;
+            long int count = ceil((double)filelen/buffer_capacity);
+            //cout << "The ceil value is: " << count  << endl;
             int offset_val = 0;
             int length = buffer_capacity;
-            char recvbuf[buffer_capacity];
+            char* recvbuf = new char [buffer_capacity];
+            //char recvbuf[buffer_capacity];
             while(count>0)
             {
                 
@@ -166,14 +183,13 @@ int main(int argc, char *argv[])
                 filemsg f1(offset_val, length);
                 char buf1[sizeof(filemsg) + filename.size()+1];
                 memcpy(buf1, &f1, sizeof(filemsg));
-                //memcpy (buf + sizeof(filemsg), filename.c_str(), filename.size() + 1);
                 strcpy(buf1 + sizeof(filemsg), filename.c_str());
                 chan.cwrite(buf1, sizeof(buf1));
-                chan.cread(recvbuf, sizeof(recvbuf));
+                chan.cread(recvbuf, buffer_capacity);
                 offset_val = offset_val + buffer_capacity;
                 file.write(recvbuf, length);
                 count--;
-
+//memcpy (buf + sizeof(filemsg), filename.c_str(), filename.size() + 1);
             }
             
             file.close();
@@ -182,7 +198,10 @@ int main(int argc, char *argv[])
             time_taken = (end.tv_sec - start.tv_sec) * 1e6; 
             time_taken = (time_taken + (end.tv_usec - start.tv_usec)) * 1e-6; 
             cout << "Time taken by program is : " << fixed << time_taken << setprecision(6); 
-            cout << " sec" << endl; 
+            cout << " sec" << endl;
+            delete [] recvbuf;
+            recvbuf = NULL;
+           
 
         }
 
@@ -211,7 +230,12 @@ int main(int argc, char *argv[])
         
         MESSAGE_TYPE quit = QUIT_MSG; 
         chan.cwrite(&quit, sizeof(MESSAGE_TYPE));
-        wait(&child_status);   
+        // if(!(filename.size()>1))
+        // {
+            waitpid(identity, NULL, 0); 
+        //}
+        
+          
         
     }
 }
